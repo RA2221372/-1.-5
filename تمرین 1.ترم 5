@@ -1,0 +1,58 @@
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, LabelEncoder, OneHotEncoder
+from sklearn.impute import SimpleImputer
+
+# 1. وارد کردن داده‌ها و بررسی کلی آن
+data = pd.read_csv('loans.csv')
+print(data.info())
+print(data.describe())
+print(data.head())
+
+# 2. تشخیص و پردازش مقادیر گم شده
+# استفاده از SimpleImputer برای جایگزینی مقادیر گم شده
+imputer = simple_imputer(strategy='mean')
+data['loan_amount'] = imputer.fit_transform(data[['loan_amount']])
+
+# 3. تشخیص و پردازش مقادیر پرت
+# استفاده از روش IQR (Interquartile Range) برای تشخیص مقادیر پرت
+Q1 = data['loan_amount'].quantile(0.25)
+Q3 = data['loan_amount'].quantile(0.75)
+IQR = Q3 - Q1
+
+# تعریف مرزهای مقادیر پرت
+lower_bound = Q1 - 1.5 * IQR
+upper_bound = Q3 + 1.5 * IQR
+
+# حذف مقادیر پرت
+data = data[(data['loan_amount'] >= lower_bound) & (data['loan_amount'] <= upper_bound)]
+
+# 4. تبدیل متغیرها (مثال: تبدیل لگاریتمی)
+data['Log loan_amount'] = np.log1p(data['loan_amount'])
+
+# 5. مقیاس‌بندی متغیرهای عددی
+scaler = StandardScaler()
+data[['loan_amount', 'Log loan_amount']] = scaler.fit_transform(data[['loan_amount', 'Log loan_amount']])
+
+# 6. رمزگذاری متغیرهای دسته‌ای
+# استفاده از LabelEncoder برای متغیر دسته‌ای 'loan_type'
+label_encoder = LabelEncoder()
+data['loan_type Encoded'] = label_encoder.fit_transform(data['loan_type'])
+
+# استفاده از OneHotEncoder برای متغیر دسته‌ای 'loan_type'
+onehot_encoder = OneHotEncoder(sparse=False)
+loan_type_encoded = onehot_encoder.fit_transform(data[['loan_type']])
+
+# اضافه کردن به داده‌های اصلی
+data = pd.concat([data, pd.DataFrame(loan_type_encoded, columns=onehot_encoder.categories_)], axis=1)
+
+# 7. ایجاد متغیرهای جدید (مثال: تفاوت بین پایان و شروع وام)
+data['loan_duration'] = pd.to_datetime(data['loan_end']) - pd.to_datetime(data['loan_start'])
+
+# 8. تقسیم داده‌ها به مجموعه آموزش و آزمون
+train_data, test_data = train_test_split(data, test_size=0.2, random_state=42)
+
+# ذخیره داده‌های نهایی در فایل csv
+train_data.to_csv('train_data.csv', index=False)
+test_data.to_csv('test_data.csv', index=False)
